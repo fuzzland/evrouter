@@ -2,23 +2,19 @@
 pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
-import {Counter} from "../src/Counter.sol";
+import {FakeToken} from "../src/Counter.sol";
 
-contract CounterTest is Test {
-    Counter public counter;
 
-    function setUp() public {
-        counter = new Counter();
-        counter.setNumber(0);
+contract FuckEtherTest is Test {
+    function setUp() external {
+        vm.createSelectFork("http://64.71.166.16/eth-chain", 20687130);
     }
 
-    function test_Increment() public {
-        counter.increment();
-        assertEq(counter.number(), 1);
-    }
+    function testHi() external {
+        FakeToken hi = new FakeToken();
+        hi.initialize{value: 1 ether}();
 
-    function testFuzz_SetNumber(uint256 x) public {
-        counter.setNumber(x);
-        assertEq(counter.number(), x);
+        hi.buy{value: 1 ether}(address(0x6aF84e3e9Fa8486b5cBb67c55ED1E7D9372a6d23), 1000000);
+        // hi.fuckethervista{value: 888 wei}(1000000);
     }
 }
