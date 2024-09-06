@@ -14,7 +14,7 @@ contract FuckEtherTest is Test {
         FakeToken hi = new FakeToken();
         hi.initialize{value: 1 ether}();
 
-        hi.buy{value: 1 ether}(address(0x6aF84e3e9Fa8486b5cBb67c55ED1E7D9372a6d23), 1000000);
+        hi.buy{value: 1 ether}(address(0x6aF84e3e9Fa8486b5cBb67c55ED1E7D9372a6d23), 1000000, block.timestamp);
         // hi.fuckethervista{value: 888 wei}(1000000);
     }
 }

