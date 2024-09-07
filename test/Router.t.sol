@@ -7,7 +7,7 @@ import {Wrap} from "../src/Router.sol";
 
 contract FuckEtherTest is Test {
     function setUp() external {
-        vm.createSelectFork("http://64.71.166.16/eth-chain");
+        vm.createSelectFork("https://eth.llamarpc.com");
     }
 
     function testHi() external {
