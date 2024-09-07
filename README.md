@@ -1,66 +1,25 @@
-## Foundry
+# Ethervista Router Wrapper
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+Uses [Ethervista bug](https://x.com/shoucccc/status/1831707216711446842) to bypass buy fee. 
 
-Foundry consists of:
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+### Run Tests
 
-## Documentation
-
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
-
-```shell
-$ forge build
+```
+forge test
 ```
 
-### Test
+### Run Frontend
 
-```shell
-$ forge test
+```
+cd frontend
+pnpm i
+pnpm run dev
 ```
 
-### Format
 
-```shell
-$ forge fmt
+### Deploy Contract
+
 ```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
+forge create test/Counter.t.sol:Ampl --rpc-url [RPC] --private-key [PRIVATE_KEY]
 ```
